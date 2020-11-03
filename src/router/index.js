@@ -1,22 +1,22 @@
-import Vue from 'vue'
-import VueRouter from 'vue-router'
+import Vue from "vue";
+import Router from "vue-router";
 
-Vue.use(VueRouter)
+Vue.use(Router);
 
-const routes = []
-
-const router = new VueRouter({
-  mode: 'history',
-  base: process.env.BASE_URL,
-  routes
+const router = new Router({
+  mode: "hash",
+  routes: [{
+    path: "/",
+    component: (resolve) => {
+      require(["./../views/fabric"], resolve);
+    },
+  },
+  {
+    path: "/test",
+    component: (resolve) => {
+      require(["./../views/test"], resolve);
+    },
+  }]
 })
 
-router.beforeEach((to,from,next) => {
-  if (to.meta.background === 'gray') {
-    document.querySelector('body').style.background = '#F4F6F9'
-  } else {
-    document.querySelector('body').style.background = '#FFFFFF'
-  }
-})
-
-export default router
+export default router;
