@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <!-- draw-list -->
     <ul class="draw-list">
       <li
         @click="setType(item.type, item.index)"
@@ -16,6 +17,7 @@
       <button @click="handleSend">发送</button>
     </ul>
 
+    <!-- 样式控制器 -->
     <div class="style-control" v-show="controlShow">
       <div class="control-item" v-show="lsType !== 'text'">
         <h3 class="title">描边</h3>
@@ -175,18 +177,38 @@
       </div>
     </div>
 
-    <canvas id="c" width="1500" height="700"></canvas>
+    <!-- 缩放控制器 -->
+    <div class="resize-control">
+      <div class="resize-item">
+        <i class="iconfont icon-jia"></i>
+      </div>
+      <div class="resize-item">
+        <i class="iconfont icon-jian"></i>
+      </div>
+      <div class="resize-item">
+        <i class="iconfont icon-huanyuan-shuaxin"></i>
+      </div>
+      <span>{{ resizeNum }}</span>
+    </div>
+
+    <canvas id="c" width="1920" height="1080"></canvas>
+
+    <img style="display: none" id="whImg" :src="bgImgUrl" alt="" />
   </div>
 </template>
 
 <script>
 import Fabric from "fabric";
 import io from "socket.io-client";
-import { drawArrow } from "@/utils/fabric.js";
+import { drawArrow, setZoom } from "@/utils/fabric.js";
 export default {
   name: "fabric",
   data() {
     return {
+      bgImgUrl:
+        "https://ss1.bdstatic.com/70cFuXSh_Q1YnxGkpoWK1HF6hhy/it/u=3557543371,89408500&fm=26&gp=0.jpg",
+      //
+      //
       strokeColor: "#c0c0c0", // 描边color
       strokeColorActive: 2,
       strokeDashActive: 1,
@@ -237,7 +259,14 @@ export default {
           type: "text",
           icon: "icon-wenben",
         },
+        {
+          index: 9,
+          type: "clear",
+          icon: "icon-xiangpica",
+        },
       ],
+      app: null,
+      canvas: null,
       controlShow: false,
       appWidth: null, // 画板宽度
       appHeight: null, // 画板高度
@@ -258,6 +287,7 @@ export default {
       el: null, //
       textbox: null, // 文本盒子
       throttle: true, // 节流flag
+      resizeNum: "100%",
       str: "",
     };
   },
@@ -271,9 +301,21 @@ export default {
       newVal === "null"
         ? (this.canvas.selection = true)
         : (this.canvas.selection = false);
-      newVal === "freedom"
-        ? (this.canvas.isDrawingMode = true)
-        : (this.canvas.isDrawingMode = false);
+      if (newVal === "freedom" || newVal === "clear") {
+        this.canvas.isDrawingMode = true;
+      } else {
+        this.canvas.isDrawingMode = false;
+      }
+      if (newVal === "clear") {
+        this.canvas.freeDrawingBrush.width = 10;
+        this.canvas.freeDrawingBrush.height = 10;
+        this.canvas.freeDrawingBrush.color = "#fff";
+        // this.canvas.freeDrawingBrush.color = "transparent"
+      } else {
+        this.canvas.freeDrawingBrush.width = 1;
+        this.canvas.freeDrawingBrush.height = 1;
+        this.canvas.freeDrawingBrush.color = "red";
+      }
     },
   },
   methods: {
@@ -292,10 +334,9 @@ export default {
       this.socket.on("disconnect", () => {});
     },
     handleToJSON() {
-    //   console.log(JSON.stringify(this.canvas));
-      console.log(this.canvas.toJSON());
-    //   this.str = JSON.stringify(this.canvas);
-      this.str = JSON.stringify(this.canvas.toJSON())
+      //   console.log(JSON.stringify(this.canvas));
+      //   this.str = JSON.stringify(this.canvas);
+      this.str = JSON.stringify(this.canvas.toJSON());
     },
     // 清空画板
     handleEmpty() {
@@ -362,13 +403,12 @@ export default {
       this.typeIndex = 1;
     },
     transformMouse(mouseX, mouseY) {
-      return { x: mouseX, y: mouseY };
+      return { x: mouseX / window.zoom, y: mouseY / window.zoom};
     },
     // created update 公共方法
     createdAndUpdate(el) {
       this.controlShow = true;
       let target = el.target;
-      console.log("target", target);
       let dash = JSON.stringify(target.strokeDashArray);
       if (dash == "[]") {
         this.strokeDashActive = 1;
@@ -377,7 +417,7 @@ export default {
       } else if (dash === "[10,10]") {
         this.strokeDashActive = 3;
       }
-      this.lsType = target.type ? target.type : "path";
+      this.lsType = target.lstype ? target.lstype : "path";
       this.alignActive = target.textAlign ? target.textAlign : "left";
       this.fontSizeActive = target.fontSize ? target.fontSize : 14;
       this.strokeColor = target.stroke ? target.stroke : "#fff";
@@ -405,6 +445,7 @@ export default {
     },
     canvasDown() {
       this.canvas.on("mouse:down", (options) => {
+        console.log(this.type);
         var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
         this.mouseFrom = {
           x: xy.x,
@@ -423,7 +464,9 @@ export default {
         this.drawingObject = null;
         this.moveCount = 1;
         this.doDrawing = false;
-        this.handlerTypeNone();
+        if (this.type != "freedom") {
+          this.handlerTypeNone();
+        }
         // 禁止出现全选中出现 样式控制器
         if (this.canvas.getActiveObjects().length > 1) {
           this.controlShow = false;
@@ -445,6 +488,11 @@ export default {
         this.drawing();
       });
     },
+    canvasPathCreate() {
+      this.canvas.on("path:created", (options) => {
+        console.log("options", options);
+      });
+    },
     drawing() {
       if (this.drawingObject) {
         this.canvas.remove(this.drawingObject);
@@ -461,10 +509,10 @@ export default {
             drawArrow(mouseFrom.x, mouseFrom.y, mouseTo.x, mouseTo.y, 30, 30),
             {
               stroke: "red",
-              fill: "#fff",
+              fill: "transparent",
               strokeDashArray: [],
               strokeWidth: 2,
-              type: "arrow",
+              lstype: "arrow",
             }
           );
           break;
@@ -475,8 +523,8 @@ export default {
               strokeDashArray: [],
               stroke: "red",
               strokeWidth: 2,
-              fill: "#fff",
-              type: "line",
+              fill: "transparent",
+              lstype: "line",
             }
           );
           break;
@@ -486,29 +534,29 @@ export default {
               (mouseTo.x - left) * (mouseTo.x - left) +
                 (mouseTo.y - top) * (mouseTo.y - top)
             ) / 2;
-
           canvasObject = new fabric.Circle({
             left: left,
             top: top,
             stroke: "red",
-            fill: "#fff",
+            fill: "transparent",
             radius: radius,
             strokeDashArray: [],
             strokeWidth: 2,
-            type: "circle",
+            lstype: "circle",
           });
           break;
         case "rect":
           canvasObject = new fabric.Rect({
             left: left,
             top: top,
-            fill: "red",
-            stroke: "#fff",
+            fill: "transparent",
+            stroke: "red",
             strokeDashArray: [],
             width: mouseTo.x - left,
             height: mouseTo.y - top,
-            type: "rect",
+            lstype: "rect",
           });
+          break;
         case "rightangle":
           let path =
             "M " +
@@ -530,8 +578,8 @@ export default {
             stroke: "red",
             strokeDashArray: [],
             strokeWidth: 2,
-            fill: "#fff",
-            type: "rightangle",
+            fill: "transparent",
+            lstype: "rightangle",
           });
           break;
         case "text":
@@ -546,7 +594,7 @@ export default {
               fill: "red",
               fontSize: 14,
               textAlign: "left",
-              type: "text",
+              lstype: "text",
             });
             this.canvas.add(this.textbox);
             this.textbox.mouseMoveHandler();
@@ -556,26 +604,43 @@ export default {
             }, 2000);
           }
           break;
+        case "clear":
+          break;
         default:
           break;
       }
-
       if (canvasObject) {
         this.canvas.add(canvasObject);
         this.drawingObject = canvasObject;
       }
+    },
+    // 设置canvas背景图片
+    setBackgroundImage() {
+      let imgElement = document.getElementById("whImg");
+      let imgWidth = imgElement.width;
+      let imgHeight = imgElement.height;
+
+      this.canvas.setBackgroundImage(
+        this.bgImgUrl,
+        this.canvas.renderAll.bind(this.canvas),
+        {
+          scaleX: this.canvas.width / imgWidth,
+          scaleY: this.canvas.height / imgHeight,
+        }
+      );
     },
     initCanvas(width, height) {
       // let str = {"version":"4.2.0","objects":[{"type":"rect","version":"4.2.0","originX":"left","originY":"top","left":100,"top":100,"width":20,"height":20,"fill":"red","stroke":null,"strokeWidth":1,"strokeDashArray":null,"strokeLineCap":"butt","strokeDashOffset":0,"strokeLineJoin":"miter","strokeMiterLimit":4,"scaleX":1,"scaleY":1,"angle":0,"flipX":false,"flipY":false,"opacity":1,"shadow":null,"visible":true,"backgroundColor":"","fillRule":"nonzero","paintFirst":"fill","globalCompositeOperation":"source-over","skewX":0,"skewY":0,"rx":0,"ry":0},{"type":"line","version":"4.2.0","originX":"left","originY":"top","left":501,"top":99,"width":69,"height":99,"fill":"rgb(0,0,0)","stroke":"red","strokeWidth":2,"strokeDashArray":null,"strokeLineCap":"butt","strokeDashOffset":0,"strokeLineJoin":"miter","strokeMiterLimit":4,"scaleX":1,"scaleY":1,"angle":0,"flipX":false,"flipY":false,"opacity":1,"shadow":null,"visible":true,"backgroundColor":"","fillRule":"nonzero","paintFirst":"fill","globalCompositeOperation":"source-over","skewX":0,"skewY":0,"x1":-34.5,"x2":34.5,"y1":-49.5,"y2":49.5},{"type":"circle","version":"4.2.0","originX":"left","originY":"top","left":681,"top":133,"width":105.55,"height":105.55,"fill":"rgba(255, 255, 255, 0)","stroke":"red","strokeWidth":2,"strokeDashArray":null,"strokeLineCap":"butt","strokeDashOffset":0,"strokeLineJoin":"miter","strokeMiterLimit":4,"scaleX":1,"scaleY":1,"angle":0,"flipX":false,"flipY":false,"opacity":1,"shadow":null,"visible":true,"backgroundColor":"","fillRule":"nonzero","paintFirst":"fill","globalCompositeOperation":"source-over","skewX":0,"skewY":0,"radius":52.77546778570513,"startAngle":0,"endAngle":6.283185307179586}]}
       // var canvas = new fabric.Canvas('c');
       // console.log(canvas)
       // canvas.loadFromJSON(str)
+
       this.canvas = new fabric.Canvas("c", {
         width: width,
         height: height,
         isDrawingMode: false,
-        // skipTargetFind: true,
-        // selectable: false,
+        skipTargetFind: true, // 是否禁止拖动
+        selectable: false, // 控件不能被选择, 不能操作
         selection: false, // 显示拖拽背景
       });
       this.canvas.freeDrawingBrush.color = "red"; // 自由绘画笔的颜色
@@ -586,13 +651,26 @@ export default {
       this.canvasSelectionCreated();
       this.canvasSelectionUpdated();
       this.canvasSelectionLeave();
+      this.canvasPathCreate();
+      // this.setBackgroundImage();
+      this.app = document.getElementById("app");
+      setZoom(this.app, this.canvas);
+      // this.canvas.add(imgInstance);
+    },
+    // 监听浏览器缩放
+    resize() {
+      window.onresize = () => {
+        this.resizeNum = Math.round(window.devicePixelRatio * 100) + "%";
+        setZoom(this.app, this.canvas);
+      };
     },
   },
   mounted() {
     this.appWidth = window.innerWidth;
     this.appHeight = window.innerHeight;
     this.initCanvas(this.appWidth, this.appHeight);
-    this.initWs();
+    this.resize();
+    // this.initWs();
   },
 };
 </script>
@@ -610,6 +688,7 @@ export default {
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
   border-radius: 4px;
   z-index: 10001;
+  white-space:nowrap;
   li {
     margin: 0 10px;
     width: 40px;
@@ -625,6 +704,30 @@ export default {
     i {
       font-size: 22px;
     }
+  }
+}
+.resize-control {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  background-color: #fff;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  .resize-item {
+    margin-right: 5px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    background-color: #ced4d8;
+    border-radius: 4px;
   }
 }
 .style-control {

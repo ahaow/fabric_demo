@@ -39,7 +39,12 @@ export default {
       this.socket.on("disconnect", () => {});
     },
     initCanvas(str = "") {
-      let canvas = new fabric.Canvas("c");
+      let canvas = new fabric.Canvas("c", {
+        selectable: true,
+        selection: false,
+        isDrawingMode: false,
+        skipTargetFind: true,
+      });
       canvas.loadFromJSON(str);
     },
   },
