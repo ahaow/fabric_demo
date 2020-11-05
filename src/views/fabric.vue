@@ -10,6 +10,15 @@
       >
         <i class="iconfont" :class="item.icon"></i>
       </li>
+      <li>
+        <input
+          type="file"
+          name="file"
+          class="file-upload"
+          @change="handleUploadImg"
+        />
+        <i class="iconfont icon-shangchuan"></i>
+      </li>
       <li @click="handleEmpty">
         <i class="iconfont icon-qingkong"></i>
       </li>
@@ -329,18 +338,65 @@ export default {
         console.log("data", data);
       });
       this.socket.on("login", (name) => {
-        console.log("name", name);
+        // console.log("name", name);
       });
       this.socket.on("disconnect", () => {});
     },
     handleToJSON() {
-      //   console.log(JSON.stringify(this.canvas));
-      //   this.str = JSON.stringify(this.canvas);
       this.str = JSON.stringify(this.canvas.toJSON());
+    },
+    // 上传图片
+    handleUploadImg(e) {
+      let file = e.target.files[0];
+      let imgEle = document.createElement("img");
+      let fs = new FileReader();
+      fs.readAsDataURL(file);
+      fs.onload = (e) => {
+        imgEle.src = e.target.result;
+        let imgInstance = new fabric.Image(imgEle, {
+          left: 200,
+          top: 200,
+          angle: 0,
+          opacity: 1,
+          lstype: "image",
+        });
+        fs.onerror = (e) => {
+          console.log("读取失败触发", e);
+        };
+        fs.onloadend = (e) => {
+          console.log("不管成功或失败触发", e);
+        };
+        this.canvas.add(imgInstance);
+        this.canvas.renderAll();
+        this.str = JSON.stringify(this.canvas.toJSON());
+        this.handleSend();
+      };
     },
     // 清空画板
     handleEmpty() {
       this.canvas.clear();
+    },
+    handlerTouch() {
+      console.log(123);
+      this.canvas.on({
+        //双指 操作事件
+        "touch:gesture": function (e) {
+          console.log("gesture", e);
+        },
+        "touch:drag": function (e) {
+          console.log("drag", e);
+        },
+        "touch:orientation": function (e) {
+          console.log("orientation", e);
+        },
+        "touch:shake": function () {
+          console.log("shake");
+        },
+        // 长按
+        "touch:longpress": function (e) {
+          console.log("longpress", e);
+        },
+      });
     },
     // 删除某个选择对象
     handleRemoveCurrentObj() {
@@ -403,12 +459,14 @@ export default {
       this.typeIndex = 1;
     },
     transformMouse(mouseX, mouseY) {
-      return { x: mouseX / window.zoom, y: mouseY / window.zoom};
+      return { x: mouseX / window.zoom, y: mouseY / window.zoom };
     },
     // created update 公共方法
     createdAndUpdate(el) {
-      this.controlShow = true;
       let target = el.target;
+      if (target.lstype !== "image") {
+        this.controlShow = true;
+      }
       let dash = JSON.stringify(target.strokeDashArray);
       if (dash == "[]") {
         this.strokeDashActive = 1;
@@ -445,7 +503,6 @@ export default {
     },
     canvasDown() {
       this.canvas.on("mouse:down", (options) => {
-        console.log(this.type);
         var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
         this.mouseFrom = {
           x: xy.x,
@@ -471,8 +528,24 @@ export default {
         if (this.canvas.getActiveObjects().length > 1) {
           this.controlShow = false;
         }
+        this.str = JSON.stringify(this.canvas.toJSON());
+        this.handleSend();
       });
     },
+    // canvasMoveBefore() {
+    //   this.canvas.on('mouse:move:before', (a) => {
+    //   })
+    // },
+    // canvaMoveOver() {
+    //    this.canvas.on('mouse:over', (a) => {
+    //     console.log(JSON.stringify(this.canvas.toJSON()))
+    //   })
+    // },
+    // canvasMouseUpBefore() {
+    //   this.canvas.on("mouse:up:before", (options) => {
+    //     console.log(123)
+    //   })
+    // },
     canvasMove() {
       this.canvas.on("mouse:move", (options) => {
         if (this.moveCount % 2 && !this.doDrawing) {
@@ -490,7 +563,8 @@ export default {
     },
     canvasPathCreate() {
       this.canvas.on("path:created", (options) => {
-        console.log("options", options);
+        this.str = JSON.stringify(this.canvas.toJSON());
+        this.handleSend();
       });
     },
     drawing() {
@@ -599,9 +673,6 @@ export default {
             this.canvas.add(this.textbox);
             this.textbox.mouseMoveHandler();
             this.throttle = false;
-            setTimeout(() => {
-              this.throttle = true;
-            }, 2000);
           }
           break;
         case "clear":
@@ -639,23 +710,26 @@ export default {
         width: width,
         height: height,
         isDrawingMode: false,
-        skipTargetFind: true, // 是否禁止拖动
-        selectable: false, // 控件不能被选择, 不能操作
+        // skipTargetFind: true, // 是否禁止拖动
+        // selectable: false, // 控件不能被选择, 不能操作
         selection: false, // 显示拖拽背景
       });
       this.canvas.freeDrawingBrush.color = "red"; // 自由绘画笔的颜色
       // this.canvas.freeDrawingBrush.width 自由绘笔触宽度
       this.canvasDown();
+      // this.canvasMouseUpBefore();
       this.canvasUp();
       this.canvasMove();
+      // this.canvasMoveBefore()
+      // this.canvaMoveOver()
       this.canvasSelectionCreated();
       this.canvasSelectionUpdated();
       this.canvasSelectionLeave();
       this.canvasPathCreate();
+      this.handlerTouch();
       // this.setBackgroundImage();
       this.app = document.getElementById("app");
       setZoom(this.app, this.canvas);
-      // this.canvas.add(imgInstance);
     },
     // 监听浏览器缩放
     resize() {
@@ -670,7 +744,7 @@ export default {
     this.appHeight = window.innerHeight;
     this.initCanvas(this.appWidth, this.appHeight);
     this.resize();
-    // this.initWs();
+    this.initWs();
   },
 };
 </script>
@@ -688,8 +762,9 @@ export default {
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
   border-radius: 4px;
   z-index: 10001;
-  white-space:nowrap;
+  white-space: nowrap;
   li {
+    position: relative;
     margin: 0 10px;
     width: 40px;
     height: 40px;
@@ -698,6 +773,16 @@ export default {
     border-radius: 4px;
     text-align: center;
     cursor: pointer;
+    .file-upload {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      font-size: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
     &.current {
       background: rgb(206, 212, 216);
     }

@@ -16,6 +16,18 @@ const router = new Router({
     component: (resolve) => {
       require(["./../views/test"], resolve);
     },
+  },
+  {
+    path: "/canvas",
+    component: (resolve) => {
+      require(["./../views/canvas"], resolve);
+    },
+  },
+  {
+    path: "/touch",
+    component: (resolve) => {
+      require(["./../views/touch"], resolve);
+    },
   }]
 })
 

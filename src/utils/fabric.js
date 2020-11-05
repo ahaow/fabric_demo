@@ -30,14 +30,14 @@ const config = {
 
 
 export function setZoom(div, canvas) {
-    console.log("div", div)
-    console.log("canvas", canvas)
+    // console.log("div", div)
+    // console.log("canvas", canvas)
     let zoom = 1;
     let divWidth = div.clientWidth,
         divHeight = div.clientHeight,
         canvasWidth = canvas.width,
         canvasHeight = canvas.height;
-    console.log("div",)
+    // console.log("div",)
     let height = divHeight > canvasHeight ? divHeight : canvasHeight;
     let width = divWidth > canvasWidth ? divWidth : canvasWidth;
     if (width > height) {

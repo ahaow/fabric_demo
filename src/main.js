@@ -5,9 +5,11 @@ import store from './store'
 // import 'amfe-flexible'
 import './assets/style/index.scss'
 import vcolorpicker from 'vcolorpicker'
+import Vconsole from "vconsole"
 
 Vue.config.productionTip = false
 Vue.use(vcolorpicker)
+new Vconsole()
 
 new Vue({
   router,
