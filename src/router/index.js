@@ -24,9 +24,9 @@ const router = new Router({
     },
   },
   {
-    path: "/touch",
+    path: "/moblie",
     component: (resolve) => {
-      require(["./../views/touch"], resolve);
+      require(["./../views/moblie"], resolve);
     },
   }]
 })

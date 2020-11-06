@@ -22,8 +22,6 @@
       <li @click="handleEmpty">
         <i class="iconfont icon-qingkong"></i>
       </li>
-      <button @click="handleToJSON">保存</button>
-      <button @click="handleSend">发送</button>
     </ul>
 
     <!-- 样式控制器 -->
@@ -189,10 +187,10 @@
     <!-- 缩放控制器 -->
     <div class="resize-control">
       <div class="resize-item">
-        <i class="iconfont icon-jia"></i>
+        <i class="iconfont icon-jia" @click="increaseResize"></i>
       </div>
       <div class="resize-item">
-        <i class="iconfont icon-jian"></i>
+        <i class="iconfont icon-jian" @click="decreaseResize"></i>
       </div>
       <div class="resize-item">
         <i class="iconfont icon-huanyuan-shuaxin"></i>
@@ -200,7 +198,7 @@
       <span>{{ resizeNum }}</span>
     </div>
 
-    <canvas id="c" width="1920" height="1080"></canvas>
+    <canvas id="c"></canvas>
 
     <img style="display: none" id="whImg" :src="bgImgUrl" alt="" />
   </div>
@@ -331,8 +329,12 @@ export default {
     handleSend() {
       this.socket.emit("login", this.str);
     },
+    handlePost() {
+      this.str = JSON.stringify(this.canvas.toJSON());
+      this.handleSend();
+    },
     initWs() {
-      this.socket = io("http://localhost:1337");
+      this.socket = io("http://127.0.0.1:1337");
       this.socket.on("connect", () => {});
       this.socket.on("event", (data) => {
         console.log("data", data);
@@ -342,8 +344,13 @@ export default {
       });
       this.socket.on("disconnect", () => {});
     },
-    handleToJSON() {
-      this.str = JSON.stringify(this.canvas.toJSON());
+    // 增加缩放
+    increaseResize() {
+      console.log("increase");
+    },
+    // 减少缩放
+    decreaseResize() {
+      console.log("decrease");
     },
     // 上传图片
     handleUploadImg(e) {
@@ -352,24 +359,28 @@ export default {
       let fs = new FileReader();
       fs.readAsDataURL(file);
       fs.onload = (e) => {
-        imgEle.src = e.target.result;
-        let imgInstance = new fabric.Image(imgEle, {
-          left: 200,
-          top: 200,
-          angle: 0,
-          opacity: 1,
-          lstype: "image",
-        });
-        fs.onerror = (e) => {
-          console.log("读取失败触发", e);
-        };
-        fs.onloadend = (e) => {
-          console.log("不管成功或失败触发", e);
-        };
-        this.canvas.add(imgInstance);
-        this.canvas.renderAll();
-        this.str = JSON.stringify(this.canvas.toJSON());
-        this.handleSend();
+        let src = e.target.result;
+        // let imgInstance = new fabric.Image(imgEle, {
+        //   left: 500,
+        //   top: 200,
+        //   angle: 0,
+        //   opacity: 1,
+        //   lstype: "image",
+        // });
+        new fabric.Image.fromURL(src, (oImg) => {
+          this.canvas.add(oImg);
+          this.handlePost()
+        })
+
+
+        // this.canvas.add(imgInstance);
+        // this.canvas.renderAll();
+      };
+      fs.onerror = (e) => {
+        console.log("读取失败触发", e);
+      };
+      fs.onloadend = (e) => {
+        console.log("不管成功或失败触发", e);
       };
     },
     // 清空画板
@@ -377,7 +388,6 @@ export default {
       this.canvas.clear();
     },
     handlerTouch() {
-      console.log(123);
       this.canvas.on({
         //双指 操作事件
         "touch:gesture": function (e) {
@@ -403,12 +413,14 @@ export default {
       let currentEl = this.canvas.getActiveObject();
       this.canvas.remove(currentEl);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置描边颜色
     setStrokeColor() {
       let currentEl = this.canvas.getActiveObject();
       currentEl.set("stroke", this.strokeColor);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置描边宽度
     setStrokeWidth(num) {
@@ -416,6 +428,7 @@ export default {
       let currentEl = this.canvas.getActiveObject();
       currentEl.set("strokeWidth", num);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置描边虚线
     setStrokeDash(arr, index) {
@@ -423,12 +436,14 @@ export default {
       currentEl.set("strokeDashArray", arr);
       this.strokeDashActive = index;
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置填充宽度
     setFillColor() {
       let currentEl = this.canvas.getActiveObject();
       currentEl.set("fill", this.fillColor);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置type
     setType(type, index) {
@@ -445,6 +460,7 @@ export default {
       this.fontSizeActive = fontSize;
       currentEl.set("fontSize", fontSize);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 设置字体方向
     setTextAlign(align) {
@@ -452,6 +468,7 @@ export default {
       this.alignActive = align;
       currentEl.set("textAlign", align);
       this.canvas.renderAll();
+      this.handlePost();
     },
     // 重定type类型值
     handlerTypeNone() {
@@ -528,8 +545,7 @@ export default {
         if (this.canvas.getActiveObjects().length > 1) {
           this.controlShow = false;
         }
-        this.str = JSON.stringify(this.canvas.toJSON());
-        this.handleSend();
+        this.handlePost();
       });
     },
     // canvasMoveBefore() {
@@ -563,9 +579,91 @@ export default {
     },
     canvasPathCreate() {
       this.canvas.on("path:created", (options) => {
-        this.str = JSON.stringify(this.canvas.toJSON());
-        this.handleSend();
+        this.handlePost();
       });
+    },
+    drawArrwowFn(mouseFrom, mouseTo) {
+      let drawObj = new fabric.Path(
+        drawArrow(mouseFrom.x, mouseFrom.y, mouseTo.x, mouseTo.y, 30, 30),
+        {
+          stroke: "red",
+          fill: "transparent",
+          strokeDashArray: [],
+          strokeWidth: 2,
+          lstype: "arrow",
+        }
+      );
+      return drawObj;
+    },
+    drawLine(mouseFrom, mouseTo) {
+      let drawObj = new fabric.Line(
+        [mouseFrom.x, mouseFrom.y, mouseTo.x, mouseTo.y],
+        {
+          strokeDashArray: [],
+          stroke: "red",
+          strokeWidth: 2,
+          fill: "transparent",
+          lstype: "line",
+        }
+      );
+      return drawObj;
+    },
+    drawCircle(mouseFrom, mouseTo) {
+      var radius =
+        Math.sqrt(
+          (mouseTo.x - mouseFrom.x) * (mouseTo.x - mouseFrom.x) +
+            (mouseTo.y - mouseFrom.y) * (mouseTo.y - mouseFrom.y)
+        ) / 2;
+      let drawObj = new fabric.Circle({
+        left: mouseFrom.x,
+        top: mouseFrom.y,
+        stroke: "red",
+        fill: "transparent",
+        radius: radius,
+        strokeDashArray: [],
+        strokeWidth: 2,
+        lstype: "circle",
+      });
+      return drawObj;
+    },
+    drawRect(mouseFrom, mouseTo) {
+      let drawObj = new fabric.Rect({
+        left: mouseFrom.x,
+        top: mouseFrom.y,
+        fill: "transparent",
+        stroke: "red",
+        strokeDashArray: [],
+        width: mouseTo.x - mouseFrom.x,
+        height: mouseTo.y - mouseFrom.y,
+        lstype: "rect",
+      });
+      return drawObj;
+    },
+    drawRightAngle(mouseFrom, mouseTo) {
+      let path =
+        "M " +
+        mouseFrom.x +
+        " " +
+        mouseFrom.y +
+        " L " +
+        mouseFrom.x +
+        " " +
+        mouseTo.y +
+        " L " +
+        mouseTo.x +
+        " " +
+        mouseTo.y +
+        " z";
+      let drawObj = new fabric.Path(path, {
+        left: mouseFrom.x,
+        top: mouseFrom.y,
+        stroke: "red",
+        strokeDashArray: [],
+        strokeWidth: 2,
+        fill: "transparent",
+        lstype: "rightangle",
+      });
+      return drawObj;
     },
     drawing() {
       if (this.drawingObject) {
@@ -579,82 +677,19 @@ export default {
         case "freedom":
           break;
         case "arrow":
-          canvasObject = new fabric.Path(
-            drawArrow(mouseFrom.x, mouseFrom.y, mouseTo.x, mouseTo.y, 30, 30),
-            {
-              stroke: "red",
-              fill: "transparent",
-              strokeDashArray: [],
-              strokeWidth: 2,
-              lstype: "arrow",
-            }
-          );
+          canvasObject = this.drawArrwowFn(mouseFrom, mouseTo);
           break;
         case "line":
-          canvasObject = new fabric.Line(
-            [mouseFrom.x, mouseFrom.y, mouseTo.x, mouseTo.y],
-            {
-              strokeDashArray: [],
-              stroke: "red",
-              strokeWidth: 2,
-              fill: "transparent",
-              lstype: "line",
-            }
-          );
+          canvasObject = this.drawLine(mouseFrom, mouseTo);
           break;
         case "circle":
-          var radius =
-            Math.sqrt(
-              (mouseTo.x - left) * (mouseTo.x - left) +
-                (mouseTo.y - top) * (mouseTo.y - top)
-            ) / 2;
-          canvasObject = new fabric.Circle({
-            left: left,
-            top: top,
-            stroke: "red",
-            fill: "transparent",
-            radius: radius,
-            strokeDashArray: [],
-            strokeWidth: 2,
-            lstype: "circle",
-          });
+          canvasObject = this.drawCircle(mouseFrom, mouseTo);
           break;
         case "rect":
-          canvasObject = new fabric.Rect({
-            left: left,
-            top: top,
-            fill: "transparent",
-            stroke: "red",
-            strokeDashArray: [],
-            width: mouseTo.x - left,
-            height: mouseTo.y - top,
-            lstype: "rect",
-          });
+          canvasObject = this.drawRect(mouseFrom, mouseTo);
           break;
         case "rightangle":
-          let path =
-            "M " +
-            mouseFrom.x +
-            " " +
-            mouseFrom.y +
-            " L " +
-            mouseFrom.x +
-            " " +
-            mouseTo.y +
-            " L " +
-            mouseTo.x +
-            " " +
-            mouseTo.y +
-            " z";
-          canvasObject = new fabric.Path(path, {
-            left: left,
-            top: top,
-            stroke: "red",
-            strokeDashArray: [],
-            strokeWidth: 2,
-            fill: "transparent",
-            lstype: "rightangle",
-          });
+          canvasObject = this.drawRightAngle(mouseFrom, mouseTo);
           break;
         case "text":
           if (this.throttle) {
@@ -662,17 +697,20 @@ export default {
               left: mouseFrom.x,
               top: mouseFrom.y,
               width: 100,
-              height: 50,
+              height: 100,
               borderColor: "rgb(178,204,255)",
               backgroundColor: "#f3f3f3",
               fill: "red",
-              fontSize: 14,
+              fontSize: 18,
               textAlign: "left",
               lstype: "text",
             });
             this.canvas.add(this.textbox);
             this.textbox.mouseMoveHandler();
             this.throttle = false;
+            setTimeout(() => {
+              this.throttle = true;
+            }, 1500);
           }
           break;
         case "clear":
@@ -802,6 +840,7 @@ export default {
   box-sizing: border-box;
   background-color: #fff;
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
   .resize-item {
     margin-right: 5px;
     display: flex;
