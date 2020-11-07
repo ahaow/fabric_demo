@@ -329,7 +329,7 @@ export default {
   },
   methods: {
     handleSend() {
-      // this.socket.emit("login", this.str);
+      this.socket.emit("login", this.str);
     },
     handlePost() {
       this.str = JSON.stringify(this.canvas.toJSON());
@@ -345,14 +345,6 @@ export default {
         // console.log("name", name);
       });
       this.socket.on("disconnect", () => {});
-    },
-    // 增加缩放
-    increaseResize() {
-      console.log("increase");
-    },
-    // 减少缩放
-    decreaseResize() {
-      console.log("decrease");
     },
     // 上传图片
     handleUploadImg(e) {
@@ -622,6 +614,34 @@ export default {
         this.handlePost();
       });
     },
+    // 滚动 设置缩放
+    canvasWheel() {
+      this.canvas.on("mouse:wheel", (opt) => {
+        if (opt.e.ctrlKey) {
+          let delta = opt.e.deltaY;
+          let zoom = this.canvas.getZoom();
+          zoom *= 0.999 ** delta;
+          if (zoom > 20) zoom = 20;
+          if (zoom < 0.01) zoom = 0.01;
+          this.canvas.setZoom(zoom);
+          opt.e.preventDefault();
+          opt.e.stopPropagation();
+          this.resizeNum = Math.round(zoom * 100) + "%";
+        }
+      });
+    },
+    // 增加缩放
+    increaseResize() {
+      console.log(this.canvas.getZoom());
+    },
+    // 减少缩放
+    decreaseResize() {
+      let zoom = this.canvas.getZoom();
+      zoom *= 0.999 ** zoom;
+      this.canvas.setZoom(zoom);
+      this.resizeNum = Math.round(zoom * 100) + "%";
+      console.log("zoom", zoom);
+    },
     canvasPathCreate() {
       this.canvas.on("path:created", (options) => {
         this.handlePost();
@@ -802,6 +822,7 @@ export default {
       this.canvasDown();
       this.canvasUp();
       this.canvasMove();
+      this.canvasWheel();
       // this.canvasMoveBefore()
       // this.canvaMoveOver()
       // this.canvasMouseUpBefore();
@@ -817,24 +838,27 @@ export default {
       // this.canvas.defaultCursor = "grabbing";
     },
     // 监听浏览器缩放
-    resize() {
-      window.onresize = () => {
-        this.resizeNum = Math.round(window.devicePixelRatio * 100) + "%";
-        // setZoom(this.app, this.canvas);
-      };
-    },
+    // resize() {
+    //   window.onresize = () => {
+    //     this.resizeNum = Math.round(window.devicePixelRatio * 100) + "%";
+    //   };
+    // },
   },
   mounted() {
     this.appWidth = window.innerWidth;
     this.appHeight = window.innerHeight;
     this.initCanvas(this.appWidth, this.appHeight);
-    this.resize();
-    // this.initWs();
+    // this.resize();
+    this.initWs();
   },
 };
 </script>
 
 <style lang="scss" scoped>
+#c {
+  border: 1px solid red;
+  box-sizing: border-box;
+}
 .draw-list {
   position: fixed;
   left: 50%;
