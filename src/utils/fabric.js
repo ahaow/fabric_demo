@@ -31,26 +31,29 @@ const config = {
 
 export function setZoom(div, canvas) {
     let zoom = 1;
+    
+    console.log("divWidth", div.clientWidth)
+    console.log("divWidth", div.offsetWidth)
 
-    let divWidth = div.clientWidth,
-        divHeight = div.clientHeight,
-        canvasWidth = canvas.width,
-        canvasHeight = canvas.height;
-    let height = divHeight > canvasHeight ? divHeight : canvasHeight;
+    let divWidth = div.clientWidth;
+    let divHeight = div.clientHeight;
+    let canvasWidth = canvas.width;
+    let canvasHeight = canvas.height;
+    console.log(divWidth, canvasWidth)
     let width = divWidth > canvasWidth ? divWidth : canvasWidth;
+    let height = divHeight > canvasHeight ? divHeight : canvasHeight;
     if (width > height) {
-        width = divWidth;
-        height = divHeight;
-        zoom = width / config.width;
+        width = divWidth
+        height = divHeight
+        zoom = width / config.width
     } else {
-        // height = height * divHeight / config.height * 0.8;
-        // zoom = height / config.height;
-
-        height = height;
-        zoom = height / height;
+        height = height * divHeight / config.height * 0.8
+        zoom = height / config.height
     }
+
     console.log("width", width)
     console.log("height", height)
+    console.log("zoom", zoom)
     canvas.setZoom(zoom)
     canvas.setWidth(width)
     canvas.setHeight(height)

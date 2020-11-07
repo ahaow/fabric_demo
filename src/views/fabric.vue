@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="fabric">
     <!-- draw-list -->
     <ul class="draw-list">
       <li
@@ -198,7 +198,7 @@
       <span>{{ resizeNum }}</span>
     </div>
 
-    <canvas id="c"></canvas>
+    <canvas id="c" width="1920" height="1080"></canvas>
 
     <img style="display: none" id="whImg" :src="bgImgUrl" alt="" />
   </div>
@@ -296,6 +296,8 @@ export default {
       throttle: true, // 节流flag
       resizeNum: "100%",
       str: "",
+      spaceFlag: false, // 控制是否显示 down 下空格键
+      panning: false, // 点击 在手按下空格键的时候在mousedown
     };
   },
   computed: {
@@ -327,7 +329,7 @@ export default {
   },
   methods: {
     handleSend() {
-      this.socket.emit("login", this.str);
+      // this.socket.emit("login", this.str);
     },
     handlePost() {
       this.str = JSON.stringify(this.canvas.toJSON());
@@ -369,10 +371,8 @@ export default {
         // });
         new fabric.Image.fromURL(src, (oImg) => {
           this.canvas.add(oImg);
-          this.handlePost()
-        })
-
-
+          this.handlePost();
+        });
         // this.canvas.add(imgInstance);
         // this.canvas.renderAll();
       };
@@ -476,7 +476,7 @@ export default {
       this.typeIndex = 1;
     },
     transformMouse(mouseX, mouseY) {
-      return { x: mouseX / window.zoom, y: mouseY / window.zoom };
+      return { x: mouseX, y: mouseY };
     },
     // created update 公共方法
     createdAndUpdate(el) {
@@ -518,9 +518,46 @@ export default {
         this.controlShow = false;
       });
     },
+    // 拖动画布
+    canvasDrawDrop() {
+      // 画布拖放 显示 鼠标 手爪 形式
+      document.addEventListener("keydown", (e) => {
+        if (e.keyCode == 32) {
+          this.spaceFlag = true;
+          document.getElementsByTagName("html")[0].style.cursor = "grabbing";
+          document.getElementsByClassName("upper-canvas")[0].style.cursor =
+            "grabbing";
+        }
+      });
+      document.addEventListener("keyup", (e) => {
+        if (e.keyCode == 32) {
+          this.spaceFlag = false;
+          document.getElementsByTagName("html")[0].style.cursor = "default";
+          document.getElementsByClassName("upper-canvas")[0].style.cursor =
+            "default";
+        }
+      });
+    },
+    canvasMoveBefore() {
+      this.canvas.on("mouse:move:before", (a) => {});
+    },
+    canvaMoveOver() {
+      this.canvas.on("mouse:over", (a) => {});
+    },
+    canvasMouseUpBefore() {
+      this.canvas.on("mouse:up:before", (options) => {});
+    },
     canvasDown() {
       this.canvas.on("mouse:down", (options) => {
-        var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
+        // 如果空格键已经按下
+        if (this.spaceFlag) {
+          this.panning = true;
+          this.canvas.selection = false;
+        } else {
+          this.panning = false;
+          this.canvas.selection = true;
+        }
+        let xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
         this.mouseFrom = {
           x: xy.x,
           y: xy.y,
@@ -528,9 +565,46 @@ export default {
         this.doDrawing = true;
       });
     },
+    canvasMove() {
+      this.canvas.on("mouse:move", (options) => {
+        /**
+         * 空格键按下, 则鼠标键设置为手爪型
+         * 鼠标键按下, 则设置为 自由拖放画布
+         * 否则切换为绘画模式
+         */
+        // if (this.spaceFlag) {
+        //   this.canvas.defaultCursor = "grabbing";
+        //   if (this.panning) {
+        //     let delta = new fabric.Point(
+        //       options.e.movementX,
+        //       options.e.movementY
+        //     );
+        //     this.canvas.relativePan(delta);
+        //   }
+        // } else {
+        //   this.canvas.defaultCursor = "default";
+        // }
+
+        // ------分割线-------
+
+        // 绘制
+        if (this.moveCount % 2 && !this.doDrawing) {
+          //减少绘制频率
+          return;
+        }
+        this.moveCount++;
+        var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
+        this.mouseTo = {
+          x: xy.x,
+          y: xy.y,
+        };
+        this.drawing();
+      });
+    },
     canvasUp() {
       this.canvas.on("mouse:up", (options) => {
-        var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
+        this.panning = false;
+        let xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
         this.mouseTo = {
           x: xy.x,
           y: xy.y,
@@ -546,35 +620,6 @@ export default {
           this.controlShow = false;
         }
         this.handlePost();
-      });
-    },
-    // canvasMoveBefore() {
-    //   this.canvas.on('mouse:move:before', (a) => {
-    //   })
-    // },
-    // canvaMoveOver() {
-    //    this.canvas.on('mouse:over', (a) => {
-    //     console.log(JSON.stringify(this.canvas.toJSON()))
-    //   })
-    // },
-    // canvasMouseUpBefore() {
-    //   this.canvas.on("mouse:up:before", (options) => {
-    //     console.log(123)
-    //   })
-    // },
-    canvasMove() {
-      this.canvas.on("mouse:move", (options) => {
-        if (this.moveCount % 2 && !this.doDrawing) {
-          //减少绘制频率
-          return;
-        }
-        this.moveCount++;
-        var xy = this.transformMouse(options.e.offsetX, options.e.offsetY);
-        this.mouseTo = {
-          x: xy.x,
-          y: xy.y,
-        };
-        this.drawing();
       });
     },
     canvasPathCreate() {
@@ -743,37 +788,39 @@ export default {
       // var canvas = new fabric.Canvas('c');
       // console.log(canvas)
       // canvas.loadFromJSON(str)
-
+      this.canvasEl = document.getElementById("c");
       this.canvas = new fabric.Canvas("c", {
         width: width,
         height: height,
         isDrawingMode: false,
         // skipTargetFind: true, // 是否禁止拖动
         // selectable: false, // 控件不能被选择, 不能操作
-        selection: false, // 显示拖拽背景
+        selection: true, // 显示拖拽背景
       });
       this.canvas.freeDrawingBrush.color = "red"; // 自由绘画笔的颜色
       // this.canvas.freeDrawingBrush.width 自由绘笔触宽度
       this.canvasDown();
-      // this.canvasMouseUpBefore();
       this.canvasUp();
       this.canvasMove();
       // this.canvasMoveBefore()
       // this.canvaMoveOver()
+      // this.canvasMouseUpBefore();
       this.canvasSelectionCreated();
       this.canvasSelectionUpdated();
       this.canvasSelectionLeave();
       this.canvasPathCreate();
       this.handlerTouch();
+      // this.canvasDrawDrop();
       // this.setBackgroundImage();
       this.app = document.getElementById("app");
-      setZoom(this.app, this.canvas);
+      // setZoom(this.app, this.canvas);
+      // this.canvas.defaultCursor = "grabbing";
     },
     // 监听浏览器缩放
     resize() {
       window.onresize = () => {
         this.resizeNum = Math.round(window.devicePixelRatio * 100) + "%";
-        setZoom(this.app, this.canvas);
+        // setZoom(this.app, this.canvas);
       };
     },
   },
@@ -782,7 +829,7 @@ export default {
     this.appHeight = window.innerHeight;
     this.initCanvas(this.appWidth, this.appHeight);
     this.resize();
-    this.initWs();
+    // this.initWs();
   },
 };
 </script>
